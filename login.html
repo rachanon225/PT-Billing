@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POSTECK Billing</title>
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1d63d6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="POSTECK Billing">
+<script>
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem('pt-billing-theme'); } catch (e) {}
+    var theme = saved || ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body class="login-shell">
+
+<div class="login-card">
+  <div class="login-icon"><img src="icon-192.png" alt="POSTECK Billing"></div>
+  <h1>POSTECK Billing</h1>
+  <p class="login-sub">กรอกรหัสผ่านเพื่อเข้าใช้งาน</p>
+  <form id="loginForm">
+    <div class="field">
+      <input type="password" id="password" placeholder="รหัสผ่าน" autofocus required>
+    </div>
+    <button type="submit" class="btn btn-primary" id="loginBtn" style="width:100%">เข้าสู่ระบบ</button>
+  </form>
+  <div class="error-box" id="errorBox" style="display:none"></div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+  // Already signed in on this device? Skip the form.
+  if (getToken()) { location.href = 'index.html'; }
+
+  document.getElementById('loginForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = document.getElementById('loginBtn');
+    btn.disabled = true;
+    btn.textContent = 'กำลังตรวจสอบ...';
+    document.getElementById('errorBox').style.display = 'none';
+
+    fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'login', password: document.getElementById('password').value })
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (json) {
+        if (!json.ok) throw new Error(json.error || 'เข้าสู่ระบบไม่สำเร็จ');
+        setToken(json.data.token);
+        location.href = 'index.html';
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        btn.textContent = 'เข้าสู่ระบบ';
+        showError('errorBox', err.message);
+      });
+  });
+</script>
+</body>
+</html>

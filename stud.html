@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POSTECK Billing</title>
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1d63d6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="POSTECK Billing">
+<script>
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem('pt-billing-theme'); } catch (e) {}
+    var theme = saved || ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="logos">
+      <img class="logo-img logo-supplies" src="logo-supplies.jpg" alt="Posteck Supplies Co., Ltd.">
+      <img class="logo-img logo-prestressing" src="logo-prestressing.jpg" alt="Posteck Prestressing Co., Ltd.">
+    </div>
+    <div class="brand-divider"></div>
+    <div class="brand-block">
+      <span class="brand">POSTECK</span>
+      <span class="brand-sub">BILLING</span>
+    </div>
+    <nav class="topnav">
+      <a href="index.html" data-page="index">หน้าแรก</a>
+      <a href="material.html" data-page="material">ค่าวัสดุ</a>
+      <a href="stressing.html" data-page="stressing">ค่าแรง</a>
+      <a href="stud.html" data-page="stud">สตัท</a>
+      <a href="history.html" data-page="history">ประวัติ</a>
+      <button type="button" class="icon-btn" id="themeToggle" aria-label="สลับโหมดมืด/สว่าง">🌙</button>
+      <button type="button" class="icon-btn" id="logoutBtn" aria-label="ออกจากระบบ" title="ออกจากระบบ">⏻</button>
+    </nav>
+  </div>
+</div>
+
+<div class="page">
+  <div class="eyebrow">ออกเอกสารใหม่</div>
+  <h1>ใบส่งมอบ — สตัท</h1>
+  <p class="subtitle">รายการขนาด / จำนวน / สี</p>
+
+  <div class="card" style="margin-top:20px">
+    <div class="card-head">
+      <h3>ข้อมูลการส่งมอบ</h3>
+      <span class="co-tag">Posteck Supplies</span>
+    </div>
+    <div class="card-body">
+      <form id="form">
+        <div class="row">
+          <div class="field">
+            <label>รหัสงาน (JobCode)</label>
+            <input type="text" id="jobCode" placeholder="เช่น HO25285" required>
+          </div>
+          <div class="field">
+            <label>เลขที่ใบสั่งซื้อ (PO)</label>
+            <input type="text" id="poNo" placeholder="เช่น PO-KATU-000308" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>วันที่</label>
+          <input type="date" id="date" required>
+        </div>
+
+        <div class="field">
+          <label>โครงการ</label>
+          <select id="project" required></select>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>อาคาร</label>
+            <select id="building" required></select>
+          </div>
+          <div class="field">
+            <label>ชั้น</label>
+            <select id="floor" required></select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>ประเภทสตัท</label>
+          <input type="text" id="studType" value="PG" required>
+        </div>
+
+        <div class="field">
+          <label>รายการ (ขนาด / จำนวน / สี)</label>
+          <div id="items"></div>
+          <button type="button" class="btn btn-secondary" id="addRow">+ เพิ่มแถว</button>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="submitBtn" style="margin-top:16px">ออกเอกสาร</button>
+      </form>
+
+      <div id="resultBox" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+  requireAuth();
+  wireTopbar('stud');
+  wireProjectCascade('project', 'building', 'floor');
+  document.getElementById('date').value = todayISO();
+
+  var itemsContainer = document.getElementById('items');
+
+  function addItemRow(size, qty, color) {
+    var row = document.createElement('div');
+    row.className = 'item-row';
+    row.innerHTML =
+      '<div class="field" style="flex:2"><input type="text" class="size" placeholder="เช่น M3x185" value="' + (size || '') + '"></div>' +
+      '<div class="field" style="flex:1"><input type="number" class="qty" placeholder="จำนวน" value="' + (qty || '') + '"></div>' +
+      '<div class="field" style="flex:1"><input type="text" class="color" placeholder="สี" value="' + (color || '') + '"></div>' +
+      '<button type="button" class="btn btn-secondary remove">ลบ</button>';
+    row.querySelector('.remove').addEventListener('click', function () {
+      row.remove();
+    });
+    itemsContainer.appendChild(row);
+  }
+
+  document.getElementById('addRow').addEventListener('click', function () { addItemRow(); });
+  addItemRow(); // start with one row
+
+  document.getElementById('form').addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    var items = [];
+    itemsContainer.querySelectorAll('.item-row').forEach(function (row) {
+      var size = row.querySelector('.size').value.trim();
+      var qty = row.querySelector('.qty').value;
+      var color = row.querySelector('.color').value.trim();
+      if (size && qty) items.push({ size: size, qty: qty, color: color });
+    });
+
+    if (items.length === 0) {
+      showError('resultBox', 'กรุณากรอกอย่างน้อย 1 รายการ (ขนาด + จำนวน)');
+      return;
+    }
+
+    var btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = 'กำลังออกเอกสาร...';
+
+    var form = {
+      jobCode: document.getElementById('jobCode').value.trim(),
+      poNo: document.getElementById('poNo').value.trim(),
+      date: document.getElementById('date').value,
+      project: document.getElementById('project').value,
+      building: document.getElementById('building').value,
+      floor: document.getElementById('floor').value,
+      studType: document.getElementById('studType').value.trim(),
+      items: items
+    };
+
+    apiCall('submitStud', { form: form })
+      .then(function (res) {
+        btn.disabled = false;
+        btn.textContent = 'ออกเอกสาร';
+        showResult('resultBox', res.docNo, res.pdfUrl);
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        btn.textContent = 'ออกเอกสาร';
+        showError('resultBox', err.message);
+      });
+  });
+</script>
+</body>
+</html>

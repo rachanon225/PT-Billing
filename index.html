@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POSTECK Billing</title>
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1d63d6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="POSTECK Billing">
+<script>
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem('pt-billing-theme'); } catch (e) {}
+    var theme = saved || ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="logos">
+      <img class="logo-img logo-supplies" src="logo-supplies.jpg" alt="Posteck Supplies Co., Ltd.">
+      <img class="logo-img logo-prestressing" src="logo-prestressing.jpg" alt="Posteck Prestressing Co., Ltd.">
+    </div>
+    <div class="brand-divider"></div>
+    <div class="brand-block">
+      <span class="brand">POSTECK</span>
+      <span class="brand-sub">BILLING</span>
+    </div>
+    <nav class="topnav">
+      <a href="index.html" data-page="index">หน้าแรก</a>
+      <a href="material.html" data-page="material">ค่าวัสดุ</a>
+      <a href="stressing.html" data-page="stressing">ค่าแรง</a>
+      <a href="stud.html" data-page="stud">สตัท</a>
+      <a href="history.html" data-page="history">ประวัติ</a>
+      <button type="button" class="icon-btn" id="themeToggle" aria-label="สลับโหมดมืด/สว่าง">🌙</button>
+      <button type="button" class="icon-btn" id="logoutBtn" aria-label="ออกจากระบบ" title="ออกจากระบบ">⏻</button>
+    </nav>
+  </div>
+</div>
+
+<div class="page">
+  <div class="eyebrow">ระบบออกเอกสาร</div>
+  <h1>เลือกประเภทใบส่งมอบงาน</h1>
+  <p class="subtitle">กรอกข้อมูลครั้งเดียว ระบบคำนวณเลขที่เอกสารและยอดสะสมให้อัตโนมัติ แล้วออกไฟล์ PDF พร้อมพิมพ์ทันที</p>
+
+  <div class="tiles">
+    <a class="tile" href="material.html">
+      <div class="tile-icon">▦</div>
+      <div class="tile-title">ค่าวัสดุ</div>
+      <div class="tile-desc">Post-tension slab / PT-helix ต่ออาคารและชั้น</div>
+      <div class="tile-co">Posteck Supplies</div>
+    </a>
+    <a class="tile" href="stressing.html">
+      <div class="tile-icon">⇥</div>
+      <div class="tile-title">ค่าแรง</div>
+      <div class="tile-desc">Stressing service งานติดตั้งและดึงลวด</div>
+      <div class="tile-co">Posteck Prestressing</div>
+    </a>
+    <a class="tile" href="stud.html">
+      <div class="tile-icon">✳</div>
+      <div class="tile-title">สตัท</div>
+      <div class="tile-desc">รายการขนาด / จำนวน / สี</div>
+      <div class="tile-co">Posteck Supplies</div>
+    </a>
+    <a class="tile" href="history.html">
+      <div class="tile-icon">◷</div>
+      <div class="tile-title">ประวัติเอกสาร</div>
+      <div class="tile-desc">ดูย้อนหลัง ดาวน์โหลดซ้ำ หรือยกเลิกเอกสาร</div>
+      <div class="tile-co">ทุกบริษัท</div>
+    </a>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+  requireAuth();
+  wireTopbar('index');
+</script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POSTECK Billing</title>
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1d63d6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="POSTECK Billing">
+<script>
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem('pt-billing-theme'); } catch (e) {}
+    var theme = saved || ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="logos">
+      <img class="logo-img logo-supplies" src="logo-supplies.jpg" alt="Posteck Supplies Co., Ltd.">
+      <img class="logo-img logo-prestressing" src="logo-prestressing.jpg" alt="Posteck Prestressing Co., Ltd.">
+    </div>
+    <div class="brand-divider"></div>
+    <div class="brand-block">
+      <span class="brand">POSTECK</span>
+      <span class="brand-sub">BILLING</span>
+    </div>
+    <nav class="topnav">
+      <a href="index.html" data-page="index">หน้าแรก</a>
+      <a href="material.html" data-page="material">ค่าวัสดุ</a>
+      <a href="stressing.html" data-page="stressing">ค่าแรง</a>
+      <a href="stud.html" data-page="stud">สตัท</a>
+      <a href="history.html" data-page="history">ประวัติ</a>
+      <button type="button" class="icon-btn" id="themeToggle" aria-label="สลับโหมดมืด/สว่าง">🌙</button>
+      <button type="button" class="icon-btn" id="logoutBtn" aria-label="ออกจากระบบ" title="ออกจากระบบ">⏻</button>
+    </nav>
+  </div>
+</div>
+
+<div class="page">
+  <div class="eyebrow">ย้อนหลัง</div>
+  <h1>ประวัติเอกสาร</h1>
+  <p class="subtitle">ดูย้อนหลัง เปิด PDF ซ้ำ หรือยกเลิกเอกสาร (ยกเลิกแล้วจะไม่ถูกนับในยอดสะสมงวดถัดไป)</p>
+
+  <div class="tabs" style="margin-top:20px">
+    <button type="button" class="tab-btn active" data-type="material">ค่าวัสดุ</button>
+    <button type="button" class="tab-btn" data-type="stressing">ค่าแรง</button>
+    <button type="button" class="tab-btn" data-type="stud">สตัท</button>
+  </div>
+
+  <table class="history">
+    <thead>
+      <tr>
+        <th>เลขที่เอกสาร</th>
+        <th>วันที่</th>
+        <th>โครงการ / อาคาร / ชั้น</th>
+        <th>สถานะ</th>
+        <th>PDF</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="rows">
+      <tr><td colspan="6">กำลังโหลด...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script src="shared.js"></script>
+<script>
+  requireAuth();
+  wireTopbar('history');
+
+  var currentType = 'material';
+
+  function load(type) {
+    currentType = type;
+    document.querySelectorAll('.tab-btn').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.type === type);
+    });
+    var tbody = document.getElementById('rows');
+    tbody.innerHTML = '<tr><td colspan="6">กำลังโหลด...</td></tr>';
+
+    apiCall('listDocuments', { type: type })
+      .then(function (rows) {
+        if (!rows || rows.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6">ยังไม่มีเอกสาร</td></tr>';
+          return;
+        }
+        tbody.innerHTML = '';
+        rows.forEach(function (r) {
+          var tr = document.createElement('tr');
+          var status = r.Voided
+            ? '<span class="badge badge-void">ยกเลิกแล้ว</span>'
+            : '<span class="badge badge-ok">ใช้งาน</span>';
+          var pdfLink = r.PdfUrl ? '<a href="' + r.PdfUrl + '" target="_blank" rel="noopener">เปิด</a>' : '-';
+          var voidBtn = r.Voided ? '' :
+            '<button type="button" class="btn btn-danger void-btn" data-docno="' + r.DocNo + '">ยกเลิก</button>';
+          tr.innerHTML =
+            '<td>' + r.DocNo + '</td>' +
+            '<td>' + r.Date + '</td>' +
+            '<td>' + r.Project + ' / ' + r.Building + ' / ชั้น ' + r.Floor + '</td>' +
+            '<td>' + status + '</td>' +
+            '<td>' + pdfLink + '</td>' +
+            '<td>' + voidBtn + '</td>';
+          tbody.appendChild(tr);
+        });
+        tbody.querySelectorAll('.void-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            if (!confirm('ยกเลิกเอกสาร ' + btn.dataset.docno + ' ใช่หรือไม่? (จะไม่ถูกนับในยอดสะสมงวดถัดไป)')) return;
+            btn.disabled = true;
+            apiCall('voidDocument', { type: currentType, docNo: btn.dataset.docno })
+              .then(function () { load(currentType); })
+              .catch(function (err) { alert('เกิดข้อผิดพลาด: ' + err.message); btn.disabled = false; });
+          });
+        });
+      })
+      .catch(function (err) {
+        tbody.innerHTML = '<tr><td colspan="6">เกิดข้อผิดพลาด: ' + err.message + '</td></tr>';
+      });
+  }
+
+  document.querySelectorAll('.tab-btn').forEach(function (b) {
+    b.addEventListener('click', function () { load(b.dataset.type); });
+  });
+
+  load('material');
+</script>
+</body>
+</html>
