@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POSTECK Billing</title>
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1d63d6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="POSTECK Billing">
+<script>
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem('pt-billing-theme'); } catch (e) {}
+    var theme = saved || ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="logos">
+      <img class="logo-img logo-supplies" src="logo-supplies.jpg" alt="Posteck Supplies Co., Ltd.">
+      <img class="logo-img logo-prestressing" src="logo-prestressing.jpg" alt="Posteck Prestressing Co., Ltd.">
+    </div>
+    <div class="brand-divider"></div>
+    <div class="brand-block">
+      <span class="brand">POSTECK</span>
+      <span class="brand-sub">BILLING</span>
+    </div>
+    <nav class="topnav">
+      <a href="index.html" data-page="index">หน้าแรก</a>
+      <a href="projects.html" data-page="projects">โครงการ</a>
+      <a href="material.html" data-page="material">ค่าวัสดุ</a>
+      <a href="stressing.html" data-page="stressing">ค่าแรง</a>
+      <a href="stud.html" data-page="stud">สตัท</a>
+      <a href="history.html" data-page="history">ประวัติ</a>
+      <button type="button" class="icon-btn" id="themeToggle" aria-label="สลับโหมดมืด/สว่าง">🌙</button>
+      <button type="button" class="icon-btn" id="logoutBtn" aria-label="ออกจากระบบ" title="ออกจากระบบ">⏻</button>
+    </nav>
+  </div>
+</div>
+
+<div class="page">
+  <div class="eyebrow">ตั้งค่าเริ่มต้น</div>
+  <h1>เปิดโครงการใหม่</h1>
+  <p class="subtitle">ลงทะเบียนชื่อโครงการและเลขที่โครงการครั้งเดียว ระบบจะใช้เลขนี้รันเลขที่เอกสารให้อัตโนมัติทุกครั้ง (เช่น เลขที่โครงการ 25285 → เลขที่เอกสาร PS-HO25285-1, PT-HO25285-1, PS-HO25285-STD001)</p>
+
+  <div class="card" style="margin-top:20px">
+    <div class="card-head">
+      <h3>ลงทะเบียนโครงการ</h3>
+    </div>
+    <div class="card-body">
+      <form id="form">
+        <div class="field">
+          <label>ชื่อโครงการ</label>
+          <input type="text" id="projectName" placeholder="เช่น ดีคอนโด กะทู้ 2 (โคฟ) (KATU)" required>
+          <div class="hint">พิมพ์ชื่อให้ตรงกับที่จะใช้ในแท็บ Projects (สำหรับอาคาร/ชั้น) เพื่อให้ยอดสะสมคำนวณถูกต้อง</div>
+        </div>
+        <div class="field">
+          <label>เลขที่โครงการ</label>
+          <input type="text" id="projectNumber" placeholder="เช่น 25285" required>
+          <div class="hint">ระบบจะเติม "HO" นำหน้าให้อัตโนมัติเป็น HO25285</div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="submitBtn" style="margin-top:6px">ลงทะเบียนโครงการ</button>
+      </form>
+
+      <div id="resultBox" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <div class="card-head">
+      <h3>โครงการที่ลงทะเบียนแล้ว</h3>
+    </div>
+    <div class="card-body">
+      <table class="history">
+        <thead>
+          <tr>
+            <th>ชื่อโครงการ</th>
+            <th>เลขที่โครงการ</th>
+            <th>เลขที่เอกสารจะขึ้นต้นด้วย</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr><td colspan="3">กำลังโหลด...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+  requireAuth();
+  wireTopbar('projects');
+
+  function load() {
+    var tbody = document.getElementById('rows');
+    tbody.innerHTML = '<tr><td colspan="3">กำลังโหลด...</td></tr>';
+    apiCall('listRegisteredProjects')
+      .then(function (rows) {
+        if (!rows || rows.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="3">ยังไม่มีโครงการที่ลงทะเบียน</td></tr>';
+          return;
+        }
+        tbody.innerHTML = '';
+        rows.forEach(function (r) {
+          var jobCode = 'HO' + r.ProjectNumber;
+          var tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td>' + r.ProjectName + '</td>' +
+            '<td>' + r.ProjectNumber + '</td>' +
+            '<td>' + jobCode + '</td>';
+          tbody.appendChild(tr);
+        });
+      })
+      .catch(function (err) {
+        tbody.innerHTML = '<tr><td colspan="3">เกิดข้อผิดพลาด: ' + err.message + '</td></tr>';
+      });
+  }
+
+  document.getElementById('form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = 'กำลังลงทะเบียน...';
+
+    var projectName = document.getElementById('projectName').value.trim();
+    var projectNumber = document.getElementById('projectNumber').value.trim();
+
+    apiCall('registerProject', { projectName: projectName, projectNumber: projectNumber })
+      .then(function (res) {
+        btn.disabled = false;
+        btn.textContent = 'ลงทะเบียนโครงการ';
+        var box = document.getElementById('resultBox');
+        box.className = 'result-box';
+        box.innerHTML = 'ลงทะเบียนโครงการ "' + res.projectName + '" เรียบร้อย — เลขที่เอกสารจะขึ้นต้นด้วย <strong>' + res.jobCode + '</strong>';
+        box.style.display = 'block';
+        document.getElementById('form').reset();
+        load();
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        btn.textContent = 'ลงทะเบียนโครงการ';
+        var box = document.getElementById('resultBox');
+        box.className = 'error-box';
+        box.textContent = 'เกิดข้อผิดพลาด: ' + err.message;
+        box.style.display = 'block';
+      });
+  });
+
+  load();
+</script>
+</body>
+</html>

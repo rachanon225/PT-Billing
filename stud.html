@@ -37,6 +37,7 @@
     </div>
     <nav class="topnav">
       <a href="index.html" data-page="index">หน้าแรก</a>
+      <a href="projects.html" data-page="projects">โครงการ</a>
       <a href="material.html" data-page="material">ค่าวัสดุ</a>
       <a href="stressing.html" data-page="stressing">ค่าแรง</a>
       <a href="stud.html" data-page="stud">สตัท</a>
@@ -59,15 +60,9 @@
     </div>
     <div class="card-body">
       <form id="form">
-        <div class="row">
-          <div class="field">
-            <label>รหัสงาน (JobCode)</label>
-            <input type="text" id="jobCode" placeholder="เช่น HO25285" required>
-          </div>
-          <div class="field">
-            <label>เลขที่ใบสั่งซื้อ (PO)</label>
-            <input type="text" id="poNo" placeholder="เช่น PO-KATU-000308" required>
-          </div>
+        <div class="field">
+          <label>เลขที่ใบสั่งซื้อ (PO)</label>
+          <input type="text" id="poNo" placeholder="เช่น PO-KATU-000308" required>
         </div>
 
         <div class="field">
@@ -156,7 +151,6 @@
     btn.textContent = 'กำลังออกเอกสาร...';
 
     var form = {
-      jobCode: document.getElementById('jobCode').value.trim(),
       poNo: document.getElementById('poNo').value.trim(),
       date: document.getElementById('date').value,
       project: document.getElementById('project').value,
