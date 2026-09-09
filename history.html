@@ -102,7 +102,10 @@
           var status = r.Voided
             ? '<span class="badge badge-void">ยกเลิกแล้ว</span>'
             : '<span class="badge badge-ok">ใช้งาน</span>';
-          var pdfLink = r.PdfUrl ? '<a href="' + r.PdfUrl + '" target="_blank" rel="noopener">เปิด</a>' : '-';
+          var pdfLink = r.PdfUrl
+            ? '<a href="' + r.PdfUrl + '" target="_blank" rel="noopener">ต้นฉบับ</a>' +
+              (r.PdfUrlCopy ? ' / <a href="' + r.PdfUrlCopy + '" target="_blank" rel="noopener">สำเนา</a>' : '')
+            : '-';
           var voidBtn = r.Voided ? '' :
             '<button type="button" class="btn btn-danger void-btn" data-docno="' + r.DocNo + '">ยกเลิก</button>';
           tr.innerHTML =

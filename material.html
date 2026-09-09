@@ -156,7 +156,7 @@
       .then(function (res) {
         btn.disabled = false;
         btn.textContent = 'ออกเอกสาร';
-        showResult('resultBox', res.docNo, res.pdfUrl);
+        showResult('resultBox', res.docNo, res.originalUrl, res.copyUrl);
       })
       .catch(function (err) {
         btn.disabled = false;

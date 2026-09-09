@@ -95,11 +95,13 @@ function todayISO() {
   return d.getFullYear() + '-' + m + '-' + day;
 }
 
-function showResult(boxId, docNo, pdfUrl) {
+function showResult(boxId, docNo, originalUrl, copyUrl) {
   var box = document.getElementById(boxId);
   box.className = 'result-box';
   box.innerHTML = 'ออกเอกสารเลขที่ <strong>' + docNo + '</strong> เรียบร้อย — ' +
-    '<a href="' + pdfUrl + '" target="_blank" rel="noopener">เปิด/พิมพ์ PDF</a>';
+    '<a href="' + originalUrl + '" target="_blank" rel="noopener">เปิดต้นฉบับ</a>' +
+    ' &nbsp;|&nbsp; ' +
+    '<a href="' + copyUrl + '" target="_blank" rel="noopener">เปิดสำเนา</a>';
   box.style.display = 'block';
 }
 
