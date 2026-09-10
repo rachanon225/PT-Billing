@@ -39,11 +39,12 @@ function requireAuth() {
 }
 
 /** POST {action, ...payload} to the Apps Script backend and return its `data` on success.
- * Apps Script's exec URL occasionally mis-routes a POST to doGet() instead of doPost() (a
- * transient Google-side redirect quirk, not tied to any specific action) — that response is
- * always the exact same static text from doGet(), which proves doPost() (and so every action
- * handler, including writes like submitMaterial) never ran. Retrying is therefore safe in that
- * one specific case; any other unparseable response is surfaced as a real error instead. */
+ * doPost() always replies with JSON — it wraps every action, including errors, in jsonOutput_().
+ * So if we ever get something else back (Apps Script's own doGet() text, or an HTML error page
+ * from Google's infra rejecting/misrouting the request before it reached our code), that proves
+ * doPost() — and so every action handler, including writes like submitMaterial — never ran.
+ * Retrying is therefore safe in exactly that situation; anything else unparseable is a real,
+ * non-retryable error. */
 function apiCallOnce_(action, payload) {
   var body = Object.assign({ action: action, token: getToken() }, payload || {});
   return fetch(API_URL, {
@@ -53,7 +54,11 @@ function apiCallOnce_(action, payload) {
   }).then(function (res) { return res.text(); });
 }
 
-var DOGET_MISROUTE_SIGNATURE_ = 'POSTECK Billing API';
+function looksLikeNonJsonInfraResponse_(text) {
+  var trimmed = text.trim();
+  return trimmed.indexOf('POSTECK Billing API') !== -1 // this app's own doGet() text
+    || trimmed.indexOf('<!DOCTYPE') === 0 || trimmed.indexOf('<html') === 0; // any HTML error page
+}
 
 function apiCall(action, payload, _retriesLeft) {
   if (_retriesLeft === undefined) _retriesLeft = 2;
@@ -62,8 +67,9 @@ function apiCall(action, payload, _retriesLeft) {
     try {
       json = JSON.parse(text);
     } catch (e) {
-      if (_retriesLeft > 0 && text.indexOf(DOGET_MISROUTE_SIGNATURE_) !== -1) {
-        return apiCall(action, payload, _retriesLeft - 1);
+      if (_retriesLeft > 0 && looksLikeNonJsonInfraResponse_(text)) {
+        return new Promise(function (resolve) { setTimeout(resolve, 800); })
+          .then(function () { return apiCall(action, payload, _retriesLeft - 1); });
       }
       throw new Error('เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง (ลองใหม่อีกครั้ง): ' + e.message);
     }
