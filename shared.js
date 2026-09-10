@@ -156,18 +156,20 @@ function wireProjectCascade(projectId, buildingId, floorId) {
   });
 }
 
-/** Auto-fills a PO/WO input from the selected project's registered PO (still freely editable after). */
+/** Auto-fills a PO/WO input from the selected project's registered PO (still freely editable after).
+ * Re-fetches on every change instead of caching one early load, so a single failed/slow request
+ * on page load can't permanently disable the autofill for the rest of the page's lifetime. */
 function wireProjectPOAutofill(projectId, poId, poField) {
   var projectSel = document.getElementById(projectId);
   var poInput = document.getElementById(poId);
-  var poByProject = {};
-
-  apiCall('listRegisteredProjects').then(function (rows) {
-    (rows || []).forEach(function (r) { poByProject[r.ProjectName] = r[poField] || ''; });
-  }).catch(function () {});
 
   projectSel.addEventListener('change', function () {
-    if (poByProject.hasOwnProperty(projectSel.value)) poInput.value = poByProject[projectSel.value];
+    var projectName = projectSel.value;
+    if (!projectName) return;
+    apiCall('listRegisteredProjects').then(function (rows) {
+      var row = (rows || []).filter(function (r) { return r.ProjectName === projectName; })[0];
+      if (row) poInput.value = row[poField] || '';
+    }).catch(function () {});
   });
 }
 
