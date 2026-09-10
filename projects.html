@@ -125,8 +125,8 @@
           <input type="text" id="newBuildingName" placeholder="เช่น A">
         </div>
         <div class="field">
-          <label>ชั้น</label>
-          <input type="text" id="newFloor" placeholder="เช่น 2.1">
+          <label>ชั้น (กรอกได้หลายชั้น คั่นด้วยจุลภาค)</label>
+          <input type="text" id="newFloor" placeholder="เช่น 2.1, 2.2, 3.1, 3.2">
         </div>
         <button type="button" class="btn btn-secondary" id="addBfBtn">+ เพิ่ม</button>
       </div>
@@ -272,18 +272,26 @@
     });
   }
 
-  document.getElementById('addBfBtn').addEventListener('click', function () {
+  document.getElementById('addBfBtn').addEventListener('click', function (e) {
+    var btn = e.currentTarget;
     var sel = document.getElementById('buildingSelect');
     var building = sel.value === '__new__' ? document.getElementById('newBuildingName').value.trim() : sel.value;
-    var floor = document.getElementById('newFloor').value.trim();
-    if (!building || !floor) { alert('กรุณากรอกอาคารและชั้น'); return; }
-    apiCall('addProjectBuilding', { projectName: editingProjectName, building: building, floor: floor })
-      .then(function () {
+    var floors = document.getElementById('newFloor').value.split(/[,\n]/)
+      .map(function (f) { return f.trim(); })
+      .filter(function (f) { return f; });
+    if (!building || floors.length === 0) { alert('กรุณากรอกอาคารและชั้น'); return; }
+    btn.disabled = true;
+    apiCall('addProjectBuildingBulk', { projectName: editingProjectName, building: building, floors: floors })
+      .then(function (res) {
+        btn.disabled = false;
         document.getElementById('newBuildingName').value = '';
         document.getElementById('newFloor').value = '';
         loadBuildings(editingProjectName);
+        if (res.skipped && res.skipped.length) {
+          alert('เพิ่มแล้ว ' + res.added.length + ' ชั้น — ข้าม ' + res.skipped.length + ' ชั้นที่มีอยู่แล้ว (' + res.skipped.join(', ') + ')');
+        }
       })
-      .catch(function (err) { alert('เกิดข้อผิดพลาด: ' + err.message); });
+      .catch(function (err) { btn.disabled = false; alert('เกิดข้อผิดพลาด: ' + err.message); });
   });
 
   function load() {
