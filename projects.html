@@ -24,9 +24,13 @@
 <style>
   .building-row { display:flex; gap:10px; align-items:flex-end; margin-bottom:10px; }
   .building-row .field { margin-bottom:0; flex:1; }
-  .bf-list { list-style:none; padding:0; margin:0 0 14px; }
-  .bf-list li { display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border-radius:8px; background:var(--card-bg-soft, rgba(255,255,255,0.05)); margin-bottom:6px; }
   .bf-empty { opacity:0.6; font-size:14px; margin-bottom:10px; }
+  .building-group { margin-bottom: 14px; }
+  .building-group h4 { margin: 0 0 8px; font-size: 14px; font-weight:700; color: var(--text); }
+  .floor-chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .floor-chip { display:flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; background:var(--card-bg-soft, rgba(255,255,255,0.08)); font-size:13px; }
+  .floor-chip button { border:none; background:transparent; color:inherit; cursor:pointer; font-size:14px; opacity:0.65; line-height:1; padding:0; }
+  .floor-chip button:hover { opacity:1; }
 </style>
 </head>
 <body>
@@ -107,12 +111,18 @@
       <h3>อาคาร/ชั้น ของ <span id="buildingsProjectName"></span></h3>
     </div>
     <div class="card-body">
-      <ul class="bf-list" id="bfList"></ul>
+      <div id="buildingGroups"></div>
       <div class="bf-empty" id="bfEmpty" style="display:none">ยังไม่มีอาคาร/ชั้น</div>
       <div class="building-row">
         <div class="field">
           <label>อาคาร</label>
-          <input type="text" id="newBuilding" placeholder="เช่น A">
+          <select id="buildingSelect">
+            <option value="__new__">+ อาคารใหม่</option>
+          </select>
+        </div>
+        <div class="field" id="newBuildingField">
+          <label>ชื่ออาคารใหม่</label>
+          <input type="text" id="newBuildingName" placeholder="เช่น A">
         </div>
         <div class="field">
           <label>ชั้น</label>
@@ -183,40 +193,93 @@
 
   document.getElementById('cancelEditBtn').addEventListener('click', function () { setEditMode(null); });
 
+  /** Groups the flat Project/Building/Floor rows by Building, in first-seen order. */
+  function groupByBuilding(rows) {
+    var byBuilding = {}, order = [];
+    (rows || []).forEach(function (r) {
+      if (!byBuilding[r.Building]) { byBuilding[r.Building] = []; order.push(r.Building); }
+      byBuilding[r.Building].push(r.Floor);
+    });
+    return { byBuilding: byBuilding, order: order };
+  }
+
+  /** Fills the "อาคาร" dropdown with existing buildings + "+ อาคารใหม่", and shows/hides the
+   * new-building-name field to match — picking an existing building "locks" it: only the floor
+   * needs typing to add another floor under it. */
+  function renderBuildingSelect(order) {
+    var sel = document.getElementById('buildingSelect');
+    var prevValue = sel.value;
+    sel.innerHTML = '';
+    order.forEach(function (b) {
+      var opt = document.createElement('option');
+      opt.value = b;
+      opt.textContent = 'อาคาร ' + b;
+      sel.appendChild(opt);
+    });
+    var newOpt = document.createElement('option');
+    newOpt.value = '__new__';
+    newOpt.textContent = '+ อาคารใหม่';
+    sel.appendChild(newOpt);
+    sel.value = order.indexOf(prevValue) !== -1 ? prevValue : (order[0] || '__new__');
+    toggleNewBuildingField();
+  }
+
+  function toggleNewBuildingField() {
+    var isNew = document.getElementById('buildingSelect').value === '__new__';
+    document.getElementById('newBuildingField').style.display = isNew ? '' : 'none';
+  }
+  document.getElementById('buildingSelect').addEventListener('change', toggleNewBuildingField);
+
   function loadBuildings(projectName) {
-    var list = document.getElementById('bfList');
+    var groupsEl = document.getElementById('buildingGroups');
     var empty = document.getElementById('bfEmpty');
-    list.innerHTML = '';
+    groupsEl.innerHTML = '';
     apiCall('listProjectBuildings', { projectName: projectName }).then(function (rows) {
+      var grouped = groupByBuilding(rows);
+      renderBuildingSelect(grouped.order);
+
       if (!rows || rows.length === 0) { empty.style.display = 'block'; return; }
       empty.style.display = 'none';
-      rows.forEach(function (r) {
-        var li = document.createElement('li');
-        var span = document.createElement('span');
-        span.textContent = 'อาคาร ' + r.Building + ' — ชั้น ' + r.Floor;
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'btn btn-danger';
-        btn.textContent = 'ลบ';
-        btn.addEventListener('click', function () {
-          apiCall('deleteProjectBuilding', { projectName: projectName, building: r.Building, floor: r.Floor })
-            .then(function () { loadBuildings(projectName); })
-            .catch(function (err) { alert('เกิดข้อผิดพลาด: ' + err.message); });
+
+      grouped.order.forEach(function (building) {
+        var group = document.createElement('div');
+        group.className = 'building-group';
+        var h4 = document.createElement('h4');
+        h4.textContent = 'อาคาร ' + building;
+        group.appendChild(h4);
+        var chips = document.createElement('div');
+        chips.className = 'floor-chips';
+        grouped.byBuilding[building].forEach(function (floor) {
+          var chip = document.createElement('span');
+          chip.className = 'floor-chip';
+          var span = document.createElement('span');
+          span.textContent = 'ชั้น ' + floor;
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = '✕';
+          btn.addEventListener('click', function () {
+            apiCall('deleteProjectBuilding', { projectName: projectName, building: building, floor: floor })
+              .then(function () { loadBuildings(projectName); })
+              .catch(function (err) { alert('เกิดข้อผิดพลาด: ' + err.message); });
+          });
+          chip.appendChild(span);
+          chip.appendChild(btn);
+          chips.appendChild(chip);
         });
-        li.appendChild(span);
-        li.appendChild(btn);
-        list.appendChild(li);
+        group.appendChild(chips);
+        groupsEl.appendChild(group);
       });
     });
   }
 
   document.getElementById('addBfBtn').addEventListener('click', function () {
-    var building = document.getElementById('newBuilding').value.trim();
+    var sel = document.getElementById('buildingSelect');
+    var building = sel.value === '__new__' ? document.getElementById('newBuildingName').value.trim() : sel.value;
     var floor = document.getElementById('newFloor').value.trim();
     if (!building || !floor) { alert('กรุณากรอกอาคารและชั้น'); return; }
     apiCall('addProjectBuilding', { projectName: editingProjectName, building: building, floor: floor })
       .then(function () {
-        document.getElementById('newBuilding').value = '';
+        document.getElementById('newBuildingName').value = '';
         document.getElementById('newFloor').value = '';
         loadBuildings(editingProjectName);
       })
