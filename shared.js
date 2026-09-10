@@ -38,23 +38,42 @@ function requireAuth() {
   return token;
 }
 
-/** POST {action, ...payload} to the Apps Script backend and return its `data` on success. */
-function apiCall(action, payload) {
+/** POST {action, ...payload} to the Apps Script backend and return its `data` on success.
+ * Apps Script's exec URL occasionally mis-routes a POST to doGet() instead of doPost() (a
+ * transient Google-side redirect quirk, not tied to any specific action) — that response is
+ * always the exact same static text from doGet(), which proves doPost() (and so every action
+ * handler, including writes like submitMaterial) never ran. Retrying is therefore safe in that
+ * one specific case; any other unparseable response is surfaced as a real error instead. */
+function apiCallOnce_(action, payload) {
   var body = Object.assign({ action: action, token: getToken() }, payload || {});
   return fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids a CORS preflight
     body: JSON.stringify(body)
-  })
-    .then(function (res) { return res.json(); })
-    .then(function (json) {
-      if (!json.ok) {
-        var err = new Error(json.error || 'เกิดข้อผิดพลาด');
-        if (json.authError) { clearToken(); location.href = 'login.html'; }
-        throw err;
+  }).then(function (res) { return res.text(); });
+}
+
+var DOGET_MISROUTE_SIGNATURE_ = 'POSTECK Billing API';
+
+function apiCall(action, payload, _retriesLeft) {
+  if (_retriesLeft === undefined) _retriesLeft = 2;
+  return apiCallOnce_(action, payload).then(function (text) {
+    var json;
+    try {
+      json = JSON.parse(text);
+    } catch (e) {
+      if (_retriesLeft > 0 && text.indexOf(DOGET_MISROUTE_SIGNATURE_) !== -1) {
+        return apiCall(action, payload, _retriesLeft - 1);
       }
-      return json.data;
-    });
+      throw new Error('เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง (ลองใหม่อีกครั้ง): ' + e.message);
+    }
+    if (!json.ok) {
+      var err = new Error(json.error || 'เกิดข้อผิดพลาด');
+      if (json.authError) { clearToken(); location.href = 'login.html'; }
+      throw err;
+    }
+    return json.data;
+  });
 }
 
 function wireTopbar(activePage) {
