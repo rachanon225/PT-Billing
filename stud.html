@@ -109,6 +109,7 @@
   requireAuth();
   wireTopbar('stud');
   wireProjectCascade('project', 'building', 'floor');
+  wireProjectPOAutofill('project', 'poNo', 'StudPO');
   document.getElementById('date').value = todayISO();
 
   var itemsContainer = document.getElementById('items');

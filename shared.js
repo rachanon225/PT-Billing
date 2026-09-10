@@ -155,3 +155,50 @@ function wireProjectCascade(projectId, buildingId, floorId) {
     projectSel.insertAdjacentHTML('afterend', '<div class="hint">โหลดรายชื่อโครงการไม่สำเร็จ: ' + err.message + '</div>');
   });
 }
+
+/** Auto-fills a PO/WO input from the selected project's registered PO (still freely editable after). */
+function wireProjectPOAutofill(projectId, poId, poField) {
+  var projectSel = document.getElementById(projectId);
+  var poInput = document.getElementById(poId);
+  var poByProject = {};
+
+  apiCall('listRegisteredProjects').then(function (rows) {
+    (rows || []).forEach(function (r) { poByProject[r.ProjectName] = r[poField] || ''; });
+  }).catch(function () {});
+
+  projectSel.addEventListener('change', function () {
+    if (poByProject.hasOwnProperty(projectSel.value)) poInput.value = poByProject[projectSel.value];
+  });
+}
+
+/** Repeatable {desc, area} item rows (ค่าวัสดุ/ค่าแรง) — add/remove, matching the stud item-row pattern.
+ * `defaultItems` (optional array of {desc, area}) seeds the initial rows; falls back to one blank row. */
+function wireItemRows(containerId, addBtnId, defaultItems) {
+  var container = document.getElementById(containerId);
+
+  function addRow(desc, area) {
+    var row = document.createElement('div');
+    row.className = 'item-row';
+    row.innerHTML =
+      '<div class="field" style="flex:2"><label>รายการ</label><input type="text" class="item-desc" value="' + (desc || '') + '" required></div>' +
+      '<div class="field" style="flex:1"><label>พื้นที่ (m²)</label><input type="number" step="0.01" class="item-area" value="' + (area || '') + '"></div>' +
+      '<button type="button" class="btn btn-secondary remove-item">ลบ</button>';
+    row.querySelector('.remove-item').addEventListener('click', function () {
+      if (container.querySelectorAll('.item-row').length <= 1) return; // keep at least one row
+      row.remove();
+    });
+    container.appendChild(row);
+  }
+
+  document.getElementById(addBtnId).addEventListener('click', function () { addRow(); });
+  (defaultItems && defaultItems.length ? defaultItems : [{}]).forEach(function (it) { addRow(it.desc, it.area); });
+
+  return function getItems() {
+    return [].slice.call(container.querySelectorAll('.item-row')).map(function (row) {
+      return {
+        desc: row.querySelector('.item-desc').value.trim(),
+        area: row.querySelector('.item-area').value
+      };
+    }).filter(function (it) { return it.desc && it.area; });
+  };
+}
