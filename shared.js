@@ -39,12 +39,12 @@ function requireAuth() {
 }
 
 /** POST {action, ...payload} to the Apps Script backend and return its `data` on success.
- * doPost() always replies with JSON — it wraps every action, including errors, in jsonOutput_().
- * So if we ever get something else back (Apps Script's own doGet() text, or an HTML error page
- * from Google's infra rejecting/misrouting the request before it reached our code), that proves
- * doPost() — and so every action handler, including writes like submitMaterial — never ran.
- * Retrying is therefore safe in exactly that situation; anything else unparseable is a real,
- * non-retryable error. */
+ * IMPORTANT: an HTML/non-JSON response does NOT prove doPost() never ran — Apps Script can
+ * finish executing (including writes) and still fail to deliver the JSON response back to the
+ * browser, showing a generic error page instead. So retrying is only safe for read-only actions
+ * (RETRYABLE_ACTIONS_ below); retrying a write on a non-JSON response risks silently re-running
+ * it and creating duplicate documents. Confirmed in practice: 3 duplicate PS_Stud rows from one
+ * submit click, caused by exactly this retry logic. */
 function apiCallOnce_(action, payload) {
   var body = Object.assign({ action: action, token: getToken() }, payload || {});
   return fetch(API_URL, {
@@ -54,6 +54,11 @@ function apiCallOnce_(action, payload) {
   }).then(function (res) { return res.text(); });
 }
 
+var RETRYABLE_ACTIONS_ = {
+  login: true, getProjectsData: true, listRegisteredProjects: true,
+  listProjectBuildings: true, listDocuments: true
+};
+
 function looksLikeNonJsonInfraResponse_(text) {
   var trimmed = text.trim();
   return trimmed.indexOf('POSTECK Billing API') !== -1 // this app's own doGet() text
@@ -61,7 +66,7 @@ function looksLikeNonJsonInfraResponse_(text) {
 }
 
 function apiCall(action, payload, _retriesLeft) {
-  if (_retriesLeft === undefined) _retriesLeft = 2;
+  if (_retriesLeft === undefined) _retriesLeft = RETRYABLE_ACTIONS_[action] ? 2 : 0;
   return apiCallOnce_(action, payload).then(function (text) {
     var json;
     try {
@@ -71,7 +76,7 @@ function apiCall(action, payload, _retriesLeft) {
         return new Promise(function (resolve) { setTimeout(resolve, 800); })
           .then(function () { return apiCall(action, payload, _retriesLeft - 1); });
       }
-      throw new Error('เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง (ลองใหม่อีกครั้ง): ' + e.message);
+      throw new Error('เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง กรุณาตรวจสอบก่อนลองใหม่ (อาจมีการบันทึกไปแล้ว): ' + e.message);
     }
     if (!json.ok) {
       var err = new Error(json.error || 'เกิดข้อผิดพลาด');
