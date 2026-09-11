@@ -60,19 +60,30 @@
     <button type="button" class="tab-btn" data-type="stud">สตัท</button>
   </div>
 
+  <div class="row" style="margin-top:16px; max-width:520px">
+    <div class="field">
+      <label>โครงการ</label>
+      <select id="historyProject"><option value="">-- เลือกโครงการ --</option></select>
+    </div>
+    <div class="field">
+      <label>อาคาร</label>
+      <select id="historyBuilding" disabled><option value="">-- เลือกอาคาร --</option></select>
+    </div>
+  </div>
+
   <table class="history">
     <thead>
       <tr>
         <th>เลขที่เอกสาร</th>
         <th>วันที่</th>
-        <th>โครงการ / อาคาร / ชั้น</th>
+        <th>ชั้น</th>
         <th>สถานะ</th>
         <th>PDF</th>
         <th></th>
       </tr>
     </thead>
     <tbody id="rows">
-      <tr><td colspan="6">กำลังโหลด...</td></tr>
+      <tr><td colspan="6">เลือกโครงการและอาคารเพื่อดูประวัติเอกสาร</td></tr>
     </tbody>
   </table>
 </div>
@@ -83,19 +94,49 @@
   wireTopbar('history');
 
   var currentType = 'material';
+  var projectSel = document.getElementById('historyProject');
+  var buildingSel = document.getElementById('historyBuilding');
+  var buildingsByProject = {};
 
-  function load(type) {
-    currentType = type;
-    document.querySelectorAll('.tab-btn').forEach(function (b) {
-      b.classList.toggle('active', b.dataset.type === type);
+  apiCall('getProjectsData').then(function (map) {
+    buildingsByProject = map || {};
+    Object.keys(buildingsByProject).forEach(function (p) {
+      var opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      projectSel.appendChild(opt);
     });
+  }).catch(function () {});
+
+  projectSel.addEventListener('change', function () {
+    buildingSel.innerHTML = '<option value="">-- เลือกอาคาร --</option>';
+    var buildings = Object.keys(buildingsByProject[projectSel.value] || {});
+    buildings.forEach(function (b) {
+      var opt = document.createElement('option');
+      opt.value = b;
+      opt.textContent = b;
+      buildingSel.appendChild(opt);
+    });
+    buildingSel.disabled = buildings.length === 0;
+    render();
+  });
+  buildingSel.addEventListener('change', render);
+
+  function render() {
     var tbody = document.getElementById('rows');
+    if (!projectSel.value || !buildingSel.value) {
+      tbody.innerHTML = '<tr><td colspan="6">เลือกโครงการและอาคารเพื่อดูประวัติเอกสาร</td></tr>';
+      return;
+    }
     tbody.innerHTML = '<tr><td colspan="6">กำลังโหลด...</td></tr>';
 
-    apiCall('listDocuments', { type: type })
-      .then(function (rows) {
-        if (!rows || rows.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6">ยังไม่มีเอกสาร</td></tr>';
+    apiCall('listDocuments', { type: currentType })
+      .then(function (allRows) {
+        var rows = (allRows || []).filter(function (r) {
+          return r.Project === projectSel.value && r.Building === buildingSel.value;
+        });
+        if (rows.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6">ยังไม่มีเอกสารในอาคารนี้</td></tr>';
           return;
         }
         tbody.innerHTML = '';
@@ -113,7 +154,7 @@
           tr.innerHTML =
             '<td>' + r.DocNo + '</td>' +
             '<td>' + r.Date + '</td>' +
-            '<td>' + r.Project + ' / ' + r.Building + ' / ชั้น ' + r.Floor + '</td>' +
+            '<td>' + r.Floor + '</td>' +
             '<td>' + status + '</td>' +
             '<td>' + pdfLink + '</td>' +
             '<td>' + voidBtn + '</td>';
@@ -124,7 +165,7 @@
             if (!confirm('ยกเลิกเอกสาร ' + btn.dataset.docno + ' ใช่หรือไม่? (จะไม่ถูกนับในยอดสะสมงวดถัดไป)')) return;
             btn.disabled = true;
             apiCall('voidDocument', { type: currentType, docNo: btn.dataset.docno })
-              .then(function () { load(currentType); })
+              .then(render)
               .catch(function (err) { alert('เกิดข้อผิดพลาด: ' + err.message); btn.disabled = false; });
           });
         });
@@ -135,10 +176,12 @@
   }
 
   document.querySelectorAll('.tab-btn').forEach(function (b) {
-    b.addEventListener('click', function () { load(b.dataset.type); });
+    b.addEventListener('click', function () {
+      currentType = b.dataset.type;
+      document.querySelectorAll('.tab-btn').forEach(function (x) { x.classList.toggle('active', x === b); });
+      render();
+    });
   });
-
-  load('material');
 </script>
 </body>
 </html>
