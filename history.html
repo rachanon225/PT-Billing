@@ -130,11 +130,9 @@
     }
     tbody.innerHTML = '<tr><td colspan="6">กำลังโหลด...</td></tr>';
 
-    apiCall('listDocuments', { type: currentType })
-      .then(function (allRows) {
-        var rows = (allRows || []).filter(function (r) {
-          return r.Project === projectSel.value && r.Building === buildingSel.value;
-        });
+    apiCall('listDocuments', { type: currentType, project: projectSel.value, building: buildingSel.value })
+      .then(function (rows) {
+        rows = rows || [];
         if (rows.length === 0) {
           tbody.innerHTML = '<tr><td colspan="6">ยังไม่มีเอกสารในอาคารนี้</td></tr>';
           return;
