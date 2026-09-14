@@ -135,11 +135,11 @@
       items: items
     };
 
-    apiCall('submitStressing', { form: form })
+    submitWithVerify_('submitStressing', form, 'stressing', 'WONo', form.woNo)
       .then(function (res) {
         btn.disabled = false;
         btn.textContent = 'ออกเอกสาร';
-        showResult('resultBox', res.docNo, res.originalUrl, res.copyUrl);
+        showResult('resultBox', res.docNo, res.originalUrl, res.copyUrl, res.verified);
       })
       .catch(function (err) {
         btn.disabled = false;

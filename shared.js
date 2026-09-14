@@ -152,14 +152,50 @@ function todayISO() {
   return d.getFullYear() + '-' + m + '-' + day;
 }
 
-function showResult(boxId, docNo, originalUrl, copyUrl) {
+function showResult(boxId, docNo, originalUrl, copyUrl, verified) {
   var box = document.getElementById(boxId);
   box.className = 'result-box';
   box.innerHTML = 'ออกเอกสารเลขที่ <strong>' + docNo + '</strong> เรียบร้อย — ' +
     '<a href="' + originalUrl + '" target="_blank" rel="noopener">เปิดต้นฉบับ</a>' +
     ' &nbsp;|&nbsp; ' +
-    '<a href="' + copyUrl + '" target="_blank" rel="noopener">เปิดสำเนา</a>';
+    '<a href="' + copyUrl + '" target="_blank" rel="noopener">เปิดสำเนา</a>' +
+    (verified ? ' <span style="font-size:11px;opacity:.7">(เซิร์ฟเวอร์ตอบกลับช้า — ระบบตรวจสอบซ้ำแล้วว่าบันทึกสำเร็จ)</span>' : '');
   box.style.display = 'block';
+}
+
+/** After a submit gets an ambiguous/non-JSON response (see apiCall's doc comment), checks
+ * whether the write actually went through instead of leaving the user to guess — by looking for
+ * a just-created document matching what was submitted (Project+Building+Floor+PO/WO number,
+ * created within the last few minutes). A genuine write failure (bad data, a real exception)
+ * leaves no such row; the transient "wrote fine but the response never arrived" case — confirmed
+ * in practice more than once — does. Returns the matching row, or null if none is found. */
+function verifyRecentSubmission_(type, project, building, floor, poField, poValue) {
+  return apiCall('listDocuments', { type: type, project: project, building: building }).then(function (rows) {
+    var cutoffMs = Date.now() - 3 * 60 * 1000;
+    var matches = (rows || []).filter(function (r) {
+      if (String(r.Floor) !== String(floor)) return false;
+      if (poValue && String(r[poField] || '') !== String(poValue)) return false;
+      return new Date(r.CreatedAt).getTime() >= cutoffMs;
+    });
+    matches.sort(function (a, b) { return new Date(b.CreatedAt) - new Date(a.CreatedAt); });
+    return matches[0] || null;
+  }).catch(function () { return null; });
+}
+
+/** Submits a document; if the response is ambiguous, automatically runs verifyRecentSubmission_
+ * instead of surfacing a scary "error" for what is, in practice, almost always a successful
+ * write with a lost response. Resolves to { docNo, originalUrl, copyUrl, verified } — verified
+ * true means confirmed via the fallback check rather than a normal response — or rejects with
+ * the real error if the write genuinely didn't happen. */
+function submitWithVerify_(action, form, type, poField, poValue) {
+  return apiCall(action, { form: form }).then(function (res) {
+    return { docNo: res.docNo, originalUrl: res.originalUrl, copyUrl: res.copyUrl, verified: false };
+  }).catch(function (err) {
+    return verifyRecentSubmission_(type, form.project, form.building, form.floor, poField, poValue).then(function (row) {
+      if (!row) throw err;
+      return { docNo: row.DocNo, originalUrl: row.PdfUrl, copyUrl: row.PdfUrlCopy, verified: true };
+    });
+  });
 }
 
 function showError(boxId, message) {

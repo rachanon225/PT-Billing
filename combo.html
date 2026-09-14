@@ -180,11 +180,11 @@
 
     // Fire both writes at once instead of waiting for material to finish before starting
     // stressing — they're independent actions against different sheets, so there's no reason
-    // to serialize them. Promise.allSettled (not .all) so that if only one side fails, we can
-    // still show the successful DocNo/links instead of losing them, and tell the user exactly
-    // which one still needs to be issued rather than having them guess and risk a duplicate.
-    var materialPromise = apiCall('submitMaterial', { form: materialForm });
-    var stressingPromise = apiCall('submitStressing', { form: stressingForm });
+    // to serialize them. Each goes through submitWithVerify_ (see shared.js), which auto-checks
+    // whether an ambiguous response actually saved instead of surfacing a scary "error" for what
+    // is, in practice, almost always a successful write with a lost response.
+    var materialPromise = submitWithVerify_('submitMaterial', materialForm, 'material', 'PONo', materialForm.poNo);
+    var stressingPromise = submitWithVerify_('submitStressing', stressingForm, 'stressing', 'WONo', stressingForm.woNo);
 
     Promise.allSettled([materialPromise, stressingPromise]).then(function (results) {
       btn.disabled = false;
@@ -193,26 +193,21 @@
       var stressingResult = results[1];
       var box = document.getElementById('resultBox');
 
+      function line(label, result) {
+        if (result.status !== 'fulfilled') return label + 'ผิดพลาด: ' + result.reason.message;
+        var res = result.value;
+        return label + 'เลขที่ <strong>' + res.docNo + '</strong> — ' +
+          '<a href="' + res.originalUrl + '" target="_blank" rel="noopener">เปิดต้นฉบับ</a> &nbsp;|&nbsp; ' +
+          '<a href="' + res.copyUrl + '" target="_blank" rel="noopener">เปิดสำเนา</a>' +
+          (res.verified ? ' <span style="font-size:11px;opacity:.7">(เซิร์ฟเวอร์ตอบกลับช้า — ตรวจสอบซ้ำแล้วว่าบันทึกสำเร็จ)</span>' : '');
+      }
+
       if (materialResult.status === 'fulfilled' && stressingResult.status === 'fulfilled') {
         box.className = 'result-box';
-        box.innerHTML =
-          'ค่าวัสดุเลขที่ <strong>' + materialResult.value.docNo + '</strong> — ' +
-          '<a href="' + materialResult.value.originalUrl + '" target="_blank" rel="noopener">เปิดต้นฉบับ</a> &nbsp;|&nbsp; ' +
-          '<a href="' + materialResult.value.copyUrl + '" target="_blank" rel="noopener">เปิดสำเนา</a>' +
-          '<br>ค่าแรงเลขที่ <strong>' + stressingResult.value.docNo + '</strong> — ' +
-          '<a href="' + stressingResult.value.originalUrl + '" target="_blank" rel="noopener">เปิดต้นฉบับ</a> &nbsp;|&nbsp; ' +
-          '<a href="' + stressingResult.value.copyUrl + '" target="_blank" rel="noopener">เปิดสำเนา</a>';
+        box.innerHTML = line('ค่าวัสดุ', materialResult) + '<br>' + line('ค่าแรง', stressingResult);
       } else {
         box.className = 'error-box';
-        var lines = [];
-        lines.push(materialResult.status === 'fulfilled'
-          ? 'ค่าวัสดุออกสำเร็จ เลขที่ <strong>' + materialResult.value.docNo + '</strong> — ' +
-            '<a href="' + materialResult.value.originalUrl + '" target="_blank" rel="noopener">เปิดต้นฉบับ</a>'
-          : 'ค่าวัสดุผิดพลาด: ' + materialResult.reason.message);
-        lines.push(stressingResult.status === 'fulfilled'
-          ? 'ค่าแรงออกสำเร็จ เลขที่ <strong>' + stressingResult.value.docNo + '</strong> — ' +
-            '<a href="' + stressingResult.value.originalUrl + '" target="_blank" rel="noopener">เปิดต้นฉบับ</a>'
-          : 'ค่าแรงผิดพลาด: ' + stressingResult.reason.message);
+        var lines = [line('ค่าวัสดุ', materialResult), line('ค่าแรง', stressingResult)];
         if (materialResult.status !== stressingResult.status) {
           lines.push('กรุณาออกเอกสารที่ผิดพลาดแยกที่หน้าฟอร์มของมันโดยตรง (อย่ากดส่งฟอร์มรวมนี้ซ้ำ จะออกใบที่สำเร็จแล้วซ้ำอีกใบ)');
         }
