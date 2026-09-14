@@ -178,31 +178,48 @@
       items: stressingItems
     });
 
-    apiCall('submitMaterial', { form: materialForm })
-      .then(function (materialRes) {
-        return apiCall('submitStressing', { form: stressingForm }).then(function (stressingRes) {
-          return { materialRes: materialRes, stressingRes: stressingRes };
-        });
-      })
-      .then(function (both) {
-        btn.disabled = false;
-        btn.textContent = 'ออกเอกสารทั้งสองแบบ';
-        var box = document.getElementById('resultBox');
+    // Fire both writes at once instead of waiting for material to finish before starting
+    // stressing — they're independent actions against different sheets, so there's no reason
+    // to serialize them. Promise.allSettled (not .all) so that if only one side fails, we can
+    // still show the successful DocNo/links instead of losing them, and tell the user exactly
+    // which one still needs to be issued rather than having them guess and risk a duplicate.
+    var materialPromise = apiCall('submitMaterial', { form: materialForm });
+    var stressingPromise = apiCall('submitStressing', { form: stressingForm });
+
+    Promise.allSettled([materialPromise, stressingPromise]).then(function (results) {
+      btn.disabled = false;
+      btn.textContent = 'ออกเอกสารทั้งสองแบบ';
+      var materialResult = results[0];
+      var stressingResult = results[1];
+      var box = document.getElementById('resultBox');
+
+      if (materialResult.status === 'fulfilled' && stressingResult.status === 'fulfilled') {
         box.className = 'result-box';
         box.innerHTML =
-          'ค่าวัสดุเลขที่ <strong>' + both.materialRes.docNo + '</strong> — ' +
-          '<a href="' + both.materialRes.originalUrl + '" target="_blank" rel="noopener">เปิดต้นฉบับ</a> &nbsp;|&nbsp; ' +
-          '<a href="' + both.materialRes.copyUrl + '" target="_blank" rel="noopener">เปิดสำเนา</a>' +
-          '<br>ค่าแรงเลขที่ <strong>' + both.stressingRes.docNo + '</strong> — ' +
-          '<a href="' + both.stressingRes.originalUrl + '" target="_blank" rel="noopener">เปิดต้นฉบับ</a> &nbsp;|&nbsp; ' +
-          '<a href="' + both.stressingRes.copyUrl + '" target="_blank" rel="noopener">เปิดสำเนา</a>';
-        box.style.display = 'block';
-      })
-      .catch(function (err) {
-        btn.disabled = false;
-        btn.textContent = 'ออกเอกสารทั้งสองแบบ';
-        showError('resultBox', err.message);
-      });
+          'ค่าวัสดุเลขที่ <strong>' + materialResult.value.docNo + '</strong> — ' +
+          '<a href="' + materialResult.value.originalUrl + '" target="_blank" rel="noopener">เปิดต้นฉบับ</a> &nbsp;|&nbsp; ' +
+          '<a href="' + materialResult.value.copyUrl + '" target="_blank" rel="noopener">เปิดสำเนา</a>' +
+          '<br>ค่าแรงเลขที่ <strong>' + stressingResult.value.docNo + '</strong> — ' +
+          '<a href="' + stressingResult.value.originalUrl + '" target="_blank" rel="noopener">เปิดต้นฉบับ</a> &nbsp;|&nbsp; ' +
+          '<a href="' + stressingResult.value.copyUrl + '" target="_blank" rel="noopener">เปิดสำเนา</a>';
+      } else {
+        box.className = 'error-box';
+        var lines = [];
+        lines.push(materialResult.status === 'fulfilled'
+          ? 'ค่าวัสดุออกสำเร็จ เลขที่ <strong>' + materialResult.value.docNo + '</strong> — ' +
+            '<a href="' + materialResult.value.originalUrl + '" target="_blank" rel="noopener">เปิดต้นฉบับ</a>'
+          : 'ค่าวัสดุผิดพลาด: ' + materialResult.reason.message);
+        lines.push(stressingResult.status === 'fulfilled'
+          ? 'ค่าแรงออกสำเร็จ เลขที่ <strong>' + stressingResult.value.docNo + '</strong> — ' +
+            '<a href="' + stressingResult.value.originalUrl + '" target="_blank" rel="noopener">เปิดต้นฉบับ</a>'
+          : 'ค่าแรงผิดพลาด: ' + stressingResult.reason.message);
+        if (materialResult.status !== stressingResult.status) {
+          lines.push('กรุณาออกเอกสารที่ผิดพลาดแยกที่หน้าฟอร์มของมันโดยตรง (อย่ากดส่งฟอร์มรวมนี้ซ้ำ จะออกใบที่สำเร็จแล้วซ้ำอีกใบ)');
+        }
+        box.innerHTML = lines.join('<br>');
+      }
+      box.style.display = 'block';
+    });
   });
 </script>
 </body>
