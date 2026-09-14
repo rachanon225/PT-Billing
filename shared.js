@@ -118,6 +118,33 @@ function wireTopbar(activePage) {
   }
 }
 
+/** sessionStorage cache for getProjectsData (Project -> Building -> Floor list) — this rarely
+ * changes within a session, but every page that shows the project dropdown fetches it fresh,
+ * which adds a full round-trip to Apps Script (slow, especially on a cold start) to every page
+ * load. Cached for 5 minutes; addProjectBuildingBulk/deleteProjectBuilding (the only actions that
+ * change this data) call invalidateProjectsDataCache() so edits show up immediately instead of
+ * waiting out the TTL. */
+var PROJECTS_DATA_CACHE_KEY = 'pt-billing-projects-cache';
+var PROJECTS_DATA_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function getProjectsDataCached_() {
+  try {
+    var raw = sessionStorage.getItem(PROJECTS_DATA_CACHE_KEY);
+    if (raw) {
+      var cached = JSON.parse(raw);
+      if (Date.now() - cached.ts < PROJECTS_DATA_CACHE_TTL_MS) return Promise.resolve(cached.data);
+    }
+  } catch (e) {}
+  return apiCall('getProjectsData').then(function (map) {
+    try { sessionStorage.setItem(PROJECTS_DATA_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: map })); } catch (e) {}
+    return map;
+  });
+}
+
+function invalidateProjectsDataCache() {
+  try { sessionStorage.removeItem(PROJECTS_DATA_CACHE_KEY); } catch (e) {}
+}
+
 function todayISO() {
   var d = new Date();
   var m = String(d.getMonth() + 1).padStart(2, '0');
@@ -174,7 +201,7 @@ function wireProjectCascade(projectId, buildingId, floorId) {
     fillSelect(floorSel, floors, '-- เลือกชั้น --');
   });
 
-  apiCall('getProjectsData').then(function (map) {
+  getProjectsDataCached_().then(function (map) {
     dataMap = map || {};
     fillSelect(projectSel, Object.keys(dataMap), '-- เลือกโครงการ --');
     if (Object.keys(dataMap).length === 0) {

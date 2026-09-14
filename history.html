@@ -98,7 +98,7 @@
   var buildingSel = document.getElementById('historyBuilding');
   var buildingsByProject = {};
 
-  apiCall('getProjectsData').then(function (map) {
+  getProjectsDataCached_().then(function (map) {
     buildingsByProject = map || {};
     Object.keys(buildingsByProject).forEach(function (p) {
       var opt = document.createElement('option');

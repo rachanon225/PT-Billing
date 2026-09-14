@@ -260,7 +260,7 @@
           btn.textContent = '✕';
           btn.addEventListener('click', function () {
             apiCall('deleteProjectBuilding', { projectName: projectName, building: building, floor: floor })
-              .then(function () { loadBuildings(projectName); })
+              .then(function () { invalidateProjectsDataCache(); loadBuildings(projectName); })
               .catch(function (err) { alert('เกิดข้อผิดพลาด: ' + err.message); });
           });
           chip.appendChild(span);
@@ -287,6 +287,7 @@
         btn.disabled = false;
         document.getElementById('newBuildingName').value = '';
         document.getElementById('newFloor').value = '';
+        invalidateProjectsDataCache();
         loadBuildings(editingProjectName);
         if (res.skipped && res.skipped.length) {
           alert('เพิ่มแล้ว ' + res.added.length + ' ชั้น — ข้าม ' + res.skipped.length + ' ชั้นที่มีอยู่แล้ว (' + res.skipped.join(', ') + ')');
