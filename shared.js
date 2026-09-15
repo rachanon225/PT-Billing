@@ -266,17 +266,21 @@ function wireProjectPOAutofill(projectId, poId, poField) {
   });
 }
 
-/** Repeatable {desc, area} item rows (ค่าวัสดุ/ค่าแรง) — add/remove, matching the stud item-row pattern.
- * `defaultItems` (optional array of {desc, area}) seeds the initial rows; falls back to one blank row. */
-function wireItemRows(containerId, addBtnId, defaultItems) {
+/** Repeatable description-only item rows (ค่าวัสดุ/ค่าแรง) — add/remove. All items in one document
+ * (e.g. "Post-tension slab" + "PT-helix") describe the same physical floor, so they share a single
+ * area field (`areaInputId`) instead of each needing its own — matches how the area is actually
+ * used downstream (cumulative tracking already takes just one representative area; see
+ * submitMaterial_/submitStressing_ in Sheets.gs). `defaultItems` (optional array of {desc}) seeds
+ * the initial rows; falls back to one blank row. */
+function wireItemRows(containerId, addBtnId, areaInputId, defaultItems) {
   var container = document.getElementById(containerId);
+  var areaInput = document.getElementById(areaInputId);
 
-  function addRow(desc, area) {
+  function addRow(desc) {
     var row = document.createElement('div');
     row.className = 'item-row';
     row.innerHTML =
-      '<div class="field" style="flex:2"><label>รายการ</label><input type="text" class="item-desc" value="' + (desc || '') + '" required></div>' +
-      '<div class="field" style="flex:1"><label>พื้นที่ (m²)</label><input type="number" step="0.01" class="item-area" value="' + (area || '') + '"></div>' +
+      '<div class="field" style="flex:1"><label>รายการ</label><input type="text" class="item-desc" value="' + (desc || '') + '" required></div>' +
       '<button type="button" class="btn btn-secondary remove-item">ลบ</button>';
     row.querySelector('.remove-item').addEventListener('click', function () {
       if (container.querySelectorAll('.item-row').length <= 1) return; // keep at least one row
@@ -286,14 +290,12 @@ function wireItemRows(containerId, addBtnId, defaultItems) {
   }
 
   document.getElementById(addBtnId).addEventListener('click', function () { addRow(); });
-  (defaultItems && defaultItems.length ? defaultItems : [{}]).forEach(function (it) { addRow(it.desc, it.area); });
+  (defaultItems && defaultItems.length ? defaultItems : [{}]).forEach(function (it) { addRow(it.desc); });
 
   return function getItems() {
+    var area = areaInput.value;
     return [].slice.call(container.querySelectorAll('.item-row')).map(function (row) {
-      return {
-        desc: row.querySelector('.item-desc').value.trim(),
-        area: row.querySelector('.item-area').value
-      };
+      return { desc: row.querySelector('.item-desc').value.trim(), area: area };
     }).filter(function (it) { return it.desc && it.area; });
   };
 }

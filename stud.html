@@ -115,15 +115,25 @@
   document.getElementById('date').value = todayISO();
 
   var itemsContainer = document.getElementById('items');
+  var STUD_SIZES = ['M3x165', 'M4x165', 'M3x185', 'M4x185', 'M3x205', 'M4x205', 'M3x225', 'M4x225'];
+  var STUD_COLORS = ['เหลือง', 'แดง', 'ขาว', 'เขียว'];
+
+  function optionsHtml(values, placeholder) {
+    var html = '<option value="">' + placeholder + '</option>';
+    values.forEach(function (v) { html += '<option value="' + v + '">' + v + '</option>'; });
+    return html;
+  }
 
   function addItemRow(size, qty, color) {
     var row = document.createElement('div');
     row.className = 'item-row';
     row.innerHTML =
-      '<div class="field" style="flex:2"><input type="text" class="size" placeholder="เช่น M3x185" value="' + (size || '') + '"></div>' +
+      '<div class="field" style="flex:2"><select class="size" required>' + optionsHtml(STUD_SIZES, '-- ขนาด --') + '</select></div>' +
       '<div class="field" style="flex:1"><input type="number" class="qty" placeholder="จำนวน" value="' + (qty || '') + '"></div>' +
-      '<div class="field" style="flex:1"><input type="text" class="color" placeholder="สี" value="' + (color || '') + '"></div>' +
+      '<div class="field" style="flex:1"><select class="color" required>' + optionsHtml(STUD_COLORS, '-- สี --') + '</select></div>' +
       '<button type="button" class="btn btn-secondary remove">ลบ</button>';
+    if (size) row.querySelector('.size').value = size;
+    if (color) row.querySelector('.color').value = color;
     row.querySelector('.remove').addEventListener('click', function () {
       row.remove();
     });
