@@ -56,7 +56,7 @@ function apiCallOnce_(action, payload) {
 
 var RETRYABLE_ACTIONS_ = {
   login: true, getProjectsData: true, listRegisteredProjects: true,
-  listProjectBuildings: true, listDocuments: true
+  listProjectBuildings: true, listDocuments: true, listStudOptions: true
 };
 
 function looksLikeNonJsonInfraResponse_(text) {
