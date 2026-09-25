@@ -38,7 +38,7 @@
     <nav class="topnav">
       <a href="index.html" data-page="index">หน้าแรก</a>
       <a href="projects.html" data-page="projects">โครงการ</a>
-      <a href="combo.html" data-page="combo">ค่าวัสดุ+ค่าแรง</a>
+      <a href="combo.html" data-page="combo">จัดทำเอกสารส่งมอบงาน</a>
       <a href="material.html" data-page="material">ค่าวัสดุ</a>
       <a href="stressing.html" data-page="stressing">ค่าแรง</a>
       <a href="stud.html" data-page="stud">สตัท</a>
@@ -51,8 +51,8 @@
 
 <div class="page">
   <div class="eyebrow">ออกเอกสารใหม่</div>
-  <h1>ใบส่งมอบ — ค่าวัสดุ + ค่าแรง</h1>
-  <p class="subtitle">กรอกโครงการ/อาคาร/ชั้นครั้งเดียว ออกเอกสารทั้งสองแบบพร้อมกัน</p>
+  <h1>จัดทำเอกสารส่งมอบงาน</h1>
+  <p class="subtitle">กรอกโครงการ/อาคาร/ชั้นครั้งเดียว ออกค่าวัสดุ + ค่าแรง (และสตัท ถ้าเลือก) พร้อมกัน</p>
 
   <div class="card" style="margin-top:20px">
     <div class="card-head">
@@ -122,6 +122,34 @@
     </div>
   </div>
 
+  <div style="margin-top:20px">
+    <button type="button" class="btn btn-secondary" id="studToggle">+ ใช้สตัท</button>
+  </div>
+
+  <div class="card" id="studCard" style="margin-top:20px; display:none">
+    <div class="card-head">
+      <h3>สตัท</h3>
+      <span class="co-tag">Posteck Supplies</span>
+    </div>
+    <div class="card-body">
+      <fieldset id="studFieldset" disabled style="border:0;margin:0;padding:0;min-width:0">
+        <div class="field">
+          <label>เลขที่ใบสั่งซื้อ (PO)</label>
+          <input type="text" id="studPoNo" placeholder="เช่น PO-KATU-000308" required>
+        </div>
+        <div class="field">
+          <label>ประเภทสตัท</label>
+          <input type="text" id="studType" value="PG" required>
+        </div>
+        <div class="field">
+          <label>รายการ (ขนาด / จำนวน / สี)</label>
+          <div id="studItems"></div>
+          <button type="button" class="btn btn-secondary" id="addStudRow">+ เพิ่มแถว</button>
+        </div>
+      </fieldset>
+    </div>
+  </div>
+
   <button type="submit" form="form" class="btn btn-primary" id="submitBtn" style="margin-top:20px">ออกเอกสารทั้งสองแบบ</button>
 
   <div id="resultBox" style="display:none; margin-top:16px"></div>
@@ -134,6 +162,7 @@
   wireProjectCascade('project', 'building', 'floor');
   wireProjectPOAutofill('project', 'materialPoNo', 'MaterialPO');
   wireProjectPOAutofill('project', 'stressingWoNo', 'StressingPO');
+  wireProjectPOAutofill('project', 'studPoNo', 'StudPO');
   document.getElementById('date').value = todayISO();
 
   var getMaterialItems = wireItemRows('materialItems', 'addMaterialItemBtn', 'sharedArea', [
@@ -144,6 +173,28 @@
     { desc: 'Stressing service รวมงานติดตั้ง ดึงลวด' }
   ]);
 
+  // Optional stud section: toggled on/off; while off, its fieldset is disabled so its required
+  // inputs don't block submission and nothing stud-related is sent.
+  var studRows = wireStudItemRows('studItems', 'addStudRow');
+  var studOn = false;
+  var studOptionsLoaded = false;
+  var SUBMIT_LABEL = function () { return studOn ? 'ออกเอกสารทั้งสามแบบ' : 'ออกเอกสารทั้งสองแบบ'; };
+
+  document.getElementById('studToggle').addEventListener('click', function () {
+    studOn = !studOn;
+    document.getElementById('studCard').style.display = studOn ? '' : 'none';
+    document.getElementById('studFieldset').disabled = !studOn;
+    this.textContent = studOn ? '✓ ใช้สตัท (คลิกเพื่อยกเลิก)' : '+ ใช้สตัท';
+    this.className = studOn ? 'btn btn-primary' : 'btn btn-secondary';
+    document.getElementById('submitBtn').textContent = SUBMIT_LABEL();
+    if (studOn && !studOptionsLoaded) {
+      apiCall('listStudOptions').then(function (opts) {
+        studOptionsLoaded = true;
+        studRows.setOptions(opts);
+      }).catch(function (err) { showError('resultBox', 'โหลดตัวเลือกสตัทไม่สำเร็จ: ' + err.message); });
+    }
+  });
+
   document.getElementById('form').addEventListener('submit', function (e) {
     e.preventDefault();
 
@@ -151,6 +202,13 @@
     var stressingItems = getStressingItems();
     if (materialItems.length === 0 || stressingItems.length === 0) {
       showError('resultBox', 'กรุณากรอกรายการอย่างน้อย 1 รายการ ทั้งค่าวัสดุและค่าแรง');
+      return;
+    }
+    var studItems = studOn ? studRows.getItems() : [];
+    var studPoNo = document.getElementById('studPoNo').value.trim();
+    var studType = document.getElementById('studType').value.trim();
+    if (studOn && (studItems.length === 0 || !studPoNo || !studType)) {
+      showError('resultBox', 'กรุณากรอกสตัทให้ครบ (เลขที่ PO, ประเภทสตัท และรายการ ขนาด + จำนวน อย่างน้อย 1 แถว) หรือกดปุ่ม "ใช้สตัท" อีกครั้งเพื่อยกเลิก');
       return;
     }
 
@@ -174,19 +232,25 @@
       items: stressingItems
     });
 
-    // Fire both writes at once instead of waiting for material to finish before starting
+    // Fire the writes at once instead of waiting for material to finish before starting
     // stressing — they're independent actions against different sheets, so there's no reason
     // to serialize them. Each goes through submitWithVerify_ (see shared.js), which auto-checks
     // whether an ambiguous response actually saved instead of surfacing a scary "error" for what
     // is, in practice, almost always a successful write with a lost response.
     var materialPromise = submitWithVerify_('submitMaterial', materialForm, 'material', 'PONo', materialForm.poNo);
     var stressingPromise = submitWithVerify_('submitStressing', stressingForm, 'stressing', 'WONo', stressingForm.woNo);
+    var promises = [materialPromise, stressingPromise];
+    if (studOn) {
+      var studForm = Object.assign({}, shared, { poNo: studPoNo, studType: studType, items: studItems });
+      promises.push(submitWithVerify_('submitStud', studForm, 'stud', 'PONo', studForm.poNo));
+    }
 
-    Promise.allSettled([materialPromise, stressingPromise]).then(function (results) {
+    Promise.allSettled(promises).then(function (results) {
       btn.disabled = false;
-      btn.textContent = 'ออกเอกสารทั้งสองแบบ';
+      btn.textContent = SUBMIT_LABEL();
       var materialResult = results[0];
       var stressingResult = results[1];
+      var studResult = results[2]; // undefined when stud wasn't requested
       var box = document.getElementById('resultBox');
 
       function line(label, result) {
@@ -198,14 +262,18 @@
           (res.verified ? ' <span style="font-size:11px;opacity:.7">(เซิร์ฟเวอร์ตอบกลับช้า — ตรวจสอบซ้ำแล้วว่าบันทึกสำเร็จ)</span>' : '');
       }
 
-      if (materialResult.status === 'fulfilled' && stressingResult.status === 'fulfilled') {
+      var labeled = [['ค่าวัสดุ', materialResult], ['ค่าแรง', stressingResult]];
+      if (studResult) labeled.push(['สตัท', studResult]);
+      var okCount = labeled.filter(function (p) { return p[1].status === 'fulfilled'; }).length;
+
+      if (okCount === labeled.length) {
         box.className = 'result-box';
-        box.innerHTML = line('ค่าวัสดุ', materialResult) + '<br>' + line('ค่าแรง', stressingResult);
+        box.innerHTML = labeled.map(function (p) { return line(p[0], p[1]); }).join('<br>');
       } else {
         box.className = 'error-box';
-        var lines = [line('ค่าวัสดุ', materialResult), line('ค่าแรง', stressingResult)];
-        if (materialResult.status !== stressingResult.status) {
-          lines.push('กรุณาออกเอกสารที่ผิดพลาดแยกที่หน้าฟอร์มของมันโดยตรง (อย่ากดส่งฟอร์มรวมนี้ซ้ำ จะออกใบที่สำเร็จแล้วซ้ำอีกใบ)');
+        var lines = labeled.map(function (p) { return line(p[0], p[1]); });
+        if (okCount > 0) {
+          lines.push('กรุณาออกเฉพาะเอกสารที่ผิดพลาดแยกที่หน้าฟอร์มของมันโดยตรง (อย่ากดส่งฟอร์มนี้ซ้ำ จะออกใบที่สำเร็จแล้วซ้ำอีกใบ)');
         }
         box.innerHTML = lines.join('<br>');
       }

@@ -48,7 +48,7 @@
     <nav class="topnav">
       <a href="index.html" data-page="index">หน้าแรก</a>
       <a href="projects.html" data-page="projects">โครงการ</a>
-      <a href="combo.html" data-page="combo">ค่าวัสดุ+ค่าแรง</a>
+      <a href="combo.html" data-page="combo">จัดทำเอกสารส่งมอบงาน</a>
       <a href="material.html" data-page="material">ค่าวัสดุ</a>
       <a href="stressing.html" data-page="stressing">ค่าแรง</a>
       <a href="stud.html" data-page="stud">สตัท</a>
@@ -67,6 +67,7 @@
   <div class="card" style="margin-top:20px">
     <div class="card-head">
       <h3>จัดการตัวเลือกขนาด/สี</h3>
+      <span style="font-size:12px;opacity:.7">เลือกสีที่จับคู่กับแต่ละขนาด — ตอนกรอก เลือกขนาดแล้วสีจะขึ้นเอง</span>
     </div>
     <div class="card-body">
       <div class="option-group">
@@ -148,51 +149,56 @@
   wireProjectPOAutofill('project', 'poNo', 'StudPO');
   document.getElementById('date').value = todayISO();
 
-  var itemsContainer = document.getElementById('items');
-  var STUD_SIZES = [];
-  var STUD_COLORS = [];
+  var studRows = wireStudItemRows('items', 'addRow');
+  var currentColors = [];
 
-  function optionsHtml(values, placeholder) {
-    var html = '<option value="">' + placeholder + '</option>';
-    values.forEach(function (v) { html += '<option value="' + v + '">' + v + '</option>'; });
-    return html;
-  }
-
-  function addItemRow(size, qty, color) {
-    var row = document.createElement('div');
-    row.className = 'item-row';
-    row.innerHTML =
-      '<div class="field" style="flex:2"><select class="size" required>' + optionsHtml(STUD_SIZES, '-- ขนาด --') + '</select></div>' +
-      '<div class="field" style="flex:1"><input type="number" class="qty" placeholder="จำนวน" value="' + (qty || '') + '"></div>' +
-      '<div class="field" style="flex:1"><select class="color" required>' + optionsHtml(STUD_COLORS, '-- สี --') + '</select></div>' +
-      '<button type="button" class="btn btn-secondary remove">ลบ</button>';
-    if (size) row.querySelector('.size').value = size;
-    if (color) row.querySelector('.color').value = color;
-    row.querySelector('.remove').addEventListener('click', function () {
-      row.remove();
-    });
-    itemsContainer.appendChild(row);
-  }
-
-  document.getElementById('addRow').addEventListener('click', function () { addItemRow(); });
-
-  // Re-populates every already-rendered row's <select> options from the current STUD_SIZES/
-  // STUD_COLORS (after adding/removing an option) without losing what was already picked.
-  function refreshItemRowOptions() {
-    itemsContainer.querySelectorAll('.item-row').forEach(function (row) {
-      var sizeSel = row.querySelector('.size'), colorSel = row.querySelector('.color');
-      var curSize = sizeSel.value, curColor = colorSel.value;
-      sizeSel.innerHTML = optionsHtml(STUD_SIZES, '-- ขนาด --');
-      colorSel.innerHTML = optionsHtml(STUD_COLORS, '-- สี --');
-      if (STUD_SIZES.indexOf(curSize) !== -1) sizeSel.value = curSize;
-      if (STUD_COLORS.indexOf(curColor) !== -1) colorSel.value = curColor;
-    });
-  }
-
-  function renderOptionChips(containerId, type, values) {
-    var el = document.getElementById(containerId);
+  function renderSizeChips(sizes) {
+    var el = document.getElementById('sizeChips');
     el.innerHTML = '';
-    values.forEach(function (v) {
+    sizes.forEach(function (s) {
+      var chip = document.createElement('span');
+      chip.className = 'option-chip';
+      var label = document.createElement('span');
+      label.textContent = s.value;
+      var sel = document.createElement('select');
+      sel.title = 'สีที่จับคู่กับขนาดนี้';
+      sel.style.cssText = 'padding:2px 6px;font-size:12px;width:auto';
+      var none = document.createElement('option');
+      none.value = '';
+      none.textContent = '-- สี --';
+      sel.appendChild(none);
+      currentColors.forEach(function (c) {
+        var o = document.createElement('option');
+        o.value = c;
+        o.textContent = c;
+        sel.appendChild(o);
+      });
+      sel.value = s.color || '';
+      sel.addEventListener('change', function () {
+        apiCall('setStudSizeColor', { size: s.value, color: sel.value })
+          .then(loadStudOptions)
+          .catch(function (err) { alert('เกิดข้อผิดพลาด: ' + err.message); loadStudOptions(); });
+      });
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = '✕';
+      btn.addEventListener('click', function () {
+        if (!confirm('ลบตัวเลือก "' + s.value + '" ใช่หรือไม่?')) return;
+        apiCall('deleteStudOption', { type: 'size', value: s.value })
+          .then(loadStudOptions)
+          .catch(function (err) { alert('เกิดข้อผิดพลาด: ' + err.message); });
+      });
+      chip.appendChild(label);
+      chip.appendChild(sel);
+      chip.appendChild(btn);
+      el.appendChild(chip);
+    });
+  }
+
+  function renderColorChips(colors) {
+    var el = document.getElementById('colorChips');
+    el.innerHTML = '';
+    colors.forEach(function (v) {
       var chip = document.createElement('span');
       chip.className = 'option-chip';
       var span = document.createElement('span');
@@ -201,8 +207,8 @@
       btn.type = 'button';
       btn.textContent = '✕';
       btn.addEventListener('click', function () {
-        if (!confirm('ลบตัวเลือก "' + v + '" ใช่หรือไม่?')) return;
-        apiCall('deleteStudOption', { type: type, value: v })
+        if (!confirm('ลบสี "' + v + '" ใช่หรือไม่? (ขนาดที่จับคู่กับสีนี้จะถูกล้างสี)')) return;
+        apiCall('deleteStudOption', { type: 'color', value: v })
           .then(loadStudOptions)
           .catch(function (err) { alert('เกิดข้อผิดพลาด: ' + err.message); });
       });
@@ -214,12 +220,10 @@
 
   function loadStudOptions() {
     return apiCall('listStudOptions').then(function (opts) {
-      STUD_SIZES = opts.sizes || [];
-      STUD_COLORS = opts.colors || [];
-      renderOptionChips('sizeChips', 'size', STUD_SIZES);
-      renderOptionChips('colorChips', 'color', STUD_COLORS);
-      refreshItemRowOptions();
-      if (itemsContainer.querySelectorAll('.item-row').length === 0) addItemRow();
+      currentColors = opts.colors || [];
+      renderSizeChips(opts.sizes || []);
+      renderColorChips(currentColors);
+      studRows.setOptions(opts);
     });
   }
 
@@ -243,13 +247,7 @@
   document.getElementById('form').addEventListener('submit', function (e) {
     e.preventDefault();
 
-    var items = [];
-    itemsContainer.querySelectorAll('.item-row').forEach(function (row) {
-      var size = row.querySelector('.size').value.trim();
-      var qty = row.querySelector('.qty').value;
-      var color = row.querySelector('.color').value.trim();
-      if (size && qty) items.push({ size: size, qty: qty, color: color });
-    });
+    var items = studRows.getItems();
 
     if (items.length === 0) {
       showError('resultBox', 'กรุณากรอกอย่างน้อย 1 รายการ (ขนาด + จำนวน)');

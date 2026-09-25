@@ -266,6 +266,76 @@ function wireProjectPOAutofill(projectId, poId, poField) {
   });
 }
 
+/** Stud item rows (size / qty / color), shared by stud.html and combo.html. Each size is paired with
+ * a color (managed on stud.html), so picking a size auto-fills its color. Feed it the result of
+ * apiCall('listStudOptions') via setOptions(); getItems() returns [{size, qty, color}]. */
+function wireStudItemRows(containerId, addBtnId) {
+  var container = document.getElementById(containerId);
+  var sizes = []; // [{value, color}]
+  var colors = []; // [value]
+
+  function fillSelect(sel, values, placeholder, current) {
+    sel.innerHTML = '';
+    var ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = placeholder;
+    sel.appendChild(ph);
+    values.forEach(function (v) {
+      var o = document.createElement('option');
+      o.value = v;
+      o.textContent = v;
+      sel.appendChild(o);
+    });
+    if (current && values.indexOf(current) !== -1) sel.value = current;
+  }
+
+  function sizeValues() { return sizes.map(function (s) { return s.value; }); }
+
+  function addRow() {
+    var row = document.createElement('div');
+    row.className = 'item-row';
+    row.innerHTML =
+      '<div class="field" style="flex:2"><select class="size" required></select></div>' +
+      '<div class="field" style="flex:1"><input type="number" class="qty" placeholder="จำนวน"></div>' +
+      '<div class="field" style="flex:1"><select class="color" required></select></div>' +
+      '<button type="button" class="btn btn-secondary remove">ลบ</button>';
+    var sizeSel = row.querySelector('.size'), colorSel = row.querySelector('.color');
+    fillSelect(sizeSel, sizeValues(), '-- ขนาด --');
+    fillSelect(colorSel, colors, '-- สี --');
+    sizeSel.addEventListener('change', function () {
+      var match = sizes.filter(function (s) { return s.value === sizeSel.value; })[0];
+      if (match && match.color && colors.indexOf(match.color) !== -1) colorSel.value = match.color;
+    });
+    row.querySelector('.remove').addEventListener('click', function () { row.remove(); });
+    container.appendChild(row);
+  }
+
+  document.getElementById(addBtnId).addEventListener('click', addRow);
+
+  return {
+    setOptions: function (opts) {
+      sizes = opts.sizes || [];
+      colors = opts.colors || [];
+      container.querySelectorAll('.item-row').forEach(function (row) {
+        var sizeSel = row.querySelector('.size'), colorSel = row.querySelector('.color');
+        fillSelect(sizeSel, sizeValues(), '-- ขนาด --', sizeSel.value);
+        fillSelect(colorSel, colors, '-- สี --', colorSel.value);
+      });
+      if (container.querySelectorAll('.item-row').length === 0) addRow();
+    },
+    getItems: function () {
+      var items = [];
+      container.querySelectorAll('.item-row').forEach(function (row) {
+        var size = row.querySelector('.size').value.trim();
+        var qty = row.querySelector('.qty').value;
+        var color = row.querySelector('.color').value.trim();
+        if (size && qty) items.push({ size: size, qty: qty, color: color });
+      });
+      return items;
+    }
+  };
+}
+
 /** Repeatable description-only item rows (ค่าวัสดุ/ค่าแรง) — add/remove. All items in one document
  * (e.g. "Post-tension slab" + "PT-helix") describe the same physical floor, so they share a single
  * area field (`areaInputId`) instead of each needing its own — matches how the area is actually
