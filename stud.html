@@ -67,24 +67,15 @@
   <div class="card" style="margin-top:20px">
     <div class="card-head">
       <h3>จัดการตัวเลือกขนาด/สี</h3>
-      <span style="font-size:12px;opacity:.7">เลือกสีที่จับคู่กับแต่ละขนาด — ตอนกรอก เลือกขนาดแล้วสีจะขึ้นเอง</span>
+      <span style="font-size:12px;opacity:.7">กรอกขนาดคู่กับสี — ตอนกรอกรายการ เลือกขนาดแล้วสีจะขึ้นเอง</span>
     </div>
     <div class="card-body">
-      <div class="option-group">
-        <h4>ขนาด</h4>
-        <div class="option-chips" id="sizeChips"></div>
-        <div class="option-add-row">
-          <input type="text" id="newSizeInput" placeholder="เช่น M5x165">
-          <button type="button" class="btn btn-secondary" id="addSizeBtn">+ เพิ่ม</button>
-        </div>
-      </div>
-      <div class="option-group" style="margin-bottom:0">
-        <h4>สี</h4>
-        <div class="option-chips" id="colorChips"></div>
-        <div class="option-add-row">
-          <input type="text" id="newColorInput" placeholder="เช่น ฟ้า">
-          <button type="button" class="btn btn-secondary" id="addColorBtn">+ เพิ่ม</button>
-        </div>
+      <div class="option-chips" id="sizeChips"></div>
+      <div class="option-add-row">
+        <input type="text" id="newSizeInput" placeholder="ขนาด เช่น M3x145">
+        <input type="text" id="newColorInput" placeholder="สี เช่น เหลือง" list="colorList">
+        <datalist id="colorList"></datalist>
+        <button type="button" class="btn btn-secondary" id="addPairBtn">+ เพิ่ม</button>
       </div>
     </div>
   </div>
@@ -150,69 +141,26 @@
   document.getElementById('date').value = todayISO();
 
   var studRows = wireStudItemRows('items', 'addRow');
-  var currentColors = [];
-
-  function renderSizeChips(sizes) {
+  function renderPairChips(sizes) {
     var el = document.getElementById('sizeChips');
     el.innerHTML = '';
+    if (sizes.length === 0) el.textContent = 'ยังไม่มีขนาด/สี — เพิ่มด้านล่าง';
     sizes.forEach(function (s) {
       var chip = document.createElement('span');
       chip.className = 'option-chip';
       var label = document.createElement('span');
-      label.textContent = s.value;
-      var sel = document.createElement('select');
-      sel.title = 'สีที่จับคู่กับขนาดนี้';
-      sel.style.cssText = 'padding:2px 6px;font-size:12px;width:auto';
-      var none = document.createElement('option');
-      none.value = '';
-      none.textContent = '-- สี --';
-      sel.appendChild(none);
-      currentColors.forEach(function (c) {
-        var o = document.createElement('option');
-        o.value = c;
-        o.textContent = c;
-        sel.appendChild(o);
-      });
-      sel.value = s.color || '';
-      sel.addEventListener('change', function () {
-        apiCall('setStudSizeColor', { size: s.value, color: sel.value })
-          .then(loadStudOptions)
-          .catch(function (err) { alert('เกิดข้อผิดพลาด: ' + err.message); loadStudOptions(); });
-      });
+      label.textContent = s.value + ' · ' + (s.color || 'ไม่มีสี');
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = '✕';
+      btn.title = 'ลบ';
       btn.addEventListener('click', function () {
-        if (!confirm('ลบตัวเลือก "' + s.value + '" ใช่หรือไม่?')) return;
-        apiCall('deleteStudOption', { type: 'size', value: s.value })
+        if (!confirm('ลบ "' + s.value + '" ใช่หรือไม่?')) return;
+        apiCall('deleteStudSize', { size: s.value })
           .then(loadStudOptions)
           .catch(function (err) { alert('เกิดข้อผิดพลาด: ' + err.message); });
       });
       chip.appendChild(label);
-      chip.appendChild(sel);
-      chip.appendChild(btn);
-      el.appendChild(chip);
-    });
-  }
-
-  function renderColorChips(colors) {
-    var el = document.getElementById('colorChips');
-    el.innerHTML = '';
-    colors.forEach(function (v) {
-      var chip = document.createElement('span');
-      chip.className = 'option-chip';
-      var span = document.createElement('span');
-      span.textContent = v;
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = '✕';
-      btn.addEventListener('click', function () {
-        if (!confirm('ลบสี "' + v + '" ใช่หรือไม่? (ขนาดที่จับคู่กับสีนี้จะถูกล้างสี)')) return;
-        apiCall('deleteStudOption', { type: 'color', value: v })
-          .then(loadStudOptions)
-          .catch(function (err) { alert('เกิดข้อผิดพลาด: ' + err.message); });
-      });
-      chip.appendChild(span);
       chip.appendChild(btn);
       el.appendChild(chip);
     });
@@ -220,25 +168,31 @@
 
   function loadStudOptions() {
     return apiCall('listStudOptions').then(function (opts) {
-      currentColors = opts.colors || [];
-      renderSizeChips(opts.sizes || []);
-      renderColorChips(currentColors);
+      renderPairChips(opts.sizes || []);
+      var dl = document.getElementById('colorList');
+      dl.innerHTML = '';
+      (opts.colors || []).forEach(function (c) {
+        var o = document.createElement('option');
+        o.value = c;
+        dl.appendChild(o);
+      });
       studRows.setOptions(opts);
     });
   }
 
-  function addOption(type, inputId) {
-    var input = document.getElementById(inputId);
-    var value = input.value.trim();
-    if (!value) return;
-    apiCall('addStudOption', { type: type, value: value })
-      .then(function () { input.value = ''; return loadStudOptions(); })
+  function addPair() {
+    var sizeInput = document.getElementById('newSizeInput');
+    var colorInput = document.getElementById('newColorInput');
+    var size = sizeInput.value.trim(), color = colorInput.value.trim();
+    if (!size || !color) { alert('กรุณากรอกทั้งขนาดและสี'); return; }
+    apiCall('addStudPair', { size: size, color: color })
+      .then(function () { sizeInput.value = ''; colorInput.value = ''; sizeInput.focus(); return loadStudOptions(); })
       .catch(function (err) { alert('เกิดข้อผิดพลาด: ' + err.message); });
   }
-  document.getElementById('addSizeBtn').addEventListener('click', function () { addOption('size', 'newSizeInput'); });
-  document.getElementById('addColorBtn').addEventListener('click', function () { addOption('color', 'newColorInput'); });
-  document.getElementById('newSizeInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addOption('size', 'newSizeInput'); } });
-  document.getElementById('newColorInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addOption('color', 'newColorInput'); } });
+  document.getElementById('addPairBtn').addEventListener('click', addPair);
+  ['newSizeInput', 'newColorInput'].forEach(function (id) {
+    document.getElementById(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addPair(); } });
+  });
 
   loadStudOptions().catch(function (err) {
     document.getElementById('sizeChips').textContent = 'โหลดตัวเลือกไม่สำเร็จ: ' + err.message;
